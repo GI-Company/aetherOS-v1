@@ -1,87 +1,88 @@
-// Copyright 2023 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"context"
+	"log"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
+
+	"aether-broker/broker/aether"
+	"aether-broker/broker/server"
+	aethersdk "aether-broker/sdk"
+
+	"github.com/gorilla/mux"
 )
 
-// statusHandler is an http.Handler that writes an empty response using itself
-// as the response status code.
-type statusHandler int
+func TestBrokerPubSub(t *testing.T) {
+	// Start the broker in a goroutine
+	broker := aether.NewBroker()
+	go broker.Run()
 
-func (h *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(int(*h))
-}
+	r := mux.NewRouter()
+	server.RegisterBusRoutes(r, broker)
 
-func TestIsTagged(t *testing.T) {
-	// Set up a fake "Google Code" web server reporting 404 not found.
-	status := statusHandler(http.StatusNotFound)
-	s := httptest.NewServer(&status)
-	defer s.Close()
-
-	if isTagged(s.URL) {
-		t.Fatal("isTagged == true, want false")
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
 
-	// Change fake server status to 200 OK and try again.
-	status = http.StatusOK
-
-	if !isTagged(s.URL) {
-		t.Fatal("isTagged == false, want true")
-	}
-}
-
-func TestIntegration(t *testing.T) {
-	status := statusHandler(http.StatusNotFound)
-	ts := httptest.NewServer(&status)
-	defer ts.Close()
-
-	// Replace the pollSleep with a closure that we can block and unblock.
-	sleep := make(chan bool)
-	pollSleep = func(time.Duration) {
-		sleep <- true
-		sleep <- true
-	}
-
-	// Replace pollDone with a closure that will tell us when the poller is
-	// exiting.
-	done := make(chan bool)
-	pollDone = func() { done <- true }
-
-	// Put things as they were when the test finishes.
-	defer func() {
-		pollSleep = time.Sleep
-		pollDone = func() {}
+	go func() {
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Printf("server error: %v", err)
+		}
 	}()
 
-	s := NewServer("1.x", ts.URL, 1*time.Millisecond)
+	defer srv.Shutdown(context.Background())
 
-	<-sleep // Wait for poll loop to start sleeping.
+	// Wait for the server to start
+	time.Sleep(1 * time.Second)
 
-	// Make first request to the server.
-	r, _ := http.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, r)
-	if b := w.Body.String(); !strings.Contains(b, "No.") {
-		t.Fatalf("body = %s, want no", b)
+	brokerURL := "http://localhost:8080"
+	testToken, err := aethersdk.NewJWT("test-user", time.Hour)
+	if err != nil {
+		t.Fatalf("error creating test token: %v", err)
 	}
 
-	status = http.StatusOK
+	client, err := aethersdk.NewClient(brokerURL, testToken)
+	if err != nil {
+		t.Fatalf("error creating client: %v", err)
+	}
 
-	<-sleep // Permit poll loop to stop sleeping.
-	<-done  // Wait for poller to see the "OK" status and exit.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// Make second request to the server.
-	w = httptest.NewRecorder()
-	s.ServeHTTP(w, r)
-	if b := w.Body.String(); !strings.Contains(b, "YES!") {
-		t.Fatalf("body = %q, want yes", b)
+	// Subscribe to a topic
+	msgs, err := client.Subscribe(ctx, "test-topic")
+	if err != nil {
+		t.Fatalf("error subscribing: %v", err)
+	}
+
+	// Publish a message in a separate goroutine
+	go func() {
+		time.Sleep(1 * time.Second) // Give the subscriber time to connect
+		payload := map[string]string{"message": "hello"}
+		if err := client.Publish(ctx, "test-topic", payload); err != nil {
+			t.Errorf("error publishing: %v", err)
+		}
+	}()
+
+	// Wait for the message
+	select {
+	case env := <-msgs:
+		if env.Topic != "test-topic" {
+			t.Errorf("got topic %q, want %q", env.Topic, "test-topic")
+		}
+		// Assuming the payload is a raw JSON message, we'll need to unmarshal it
+		var payload map[string]string
+		if err := env.UnmarshalPayload(&payload); err != nil {
+			t.Fatalf("error unmarshaling payload: %v", err)
+		}
+		if payload["message"] != "hello" {
+			t.Errorf("got message %q, want %q", payload["message"], "hello")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for message")
 	}
 }
