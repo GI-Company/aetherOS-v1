@@ -10,9 +10,9 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": "dummy-token"})
 }
 
-func servicesHandler(w http.ResponseWriter, r *http.Request) {
+func appsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode([]string{"com.aether.asr@v1"})
+	json.NewEncoder(w).Encode(getDesktopApps())
 }
 
 func createInstanceHandler(w http.ResponseWriter, r *http.Request) {

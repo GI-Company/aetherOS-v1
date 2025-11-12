@@ -2,9 +2,11 @@ import React from 'react';
 import Draggable from 'react-draggable';
 import { Resizable } from 'react-resizable';
 
-export default function Window({ window, onFocus, onResize, onMove, onClose }) {
+export default function Window({ window, layout, children, onFocus, onResize, onMove, onClose, onMinimize }) {
   const handleMouseDown = () => {
-    onFocus();
+    if (onFocus) {
+      onFocus();
+    }
     document.body.classList.add('grabbing');
   };
 
@@ -12,30 +14,35 @@ export default function Window({ window, onFocus, onResize, onMove, onClose }) {
     document.body.classList.remove('grabbing');
   };
 
+  const { x, y, width, height, zIndex, minimized } = { ...window, ...layout };
+
   return (
     <Draggable
       handle=".window-header"
-      position={{ x: window.x, y: window.y }}
+      position={{ x: x || 50, y: y || 50 }}
       onStop={onMove}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
       <Resizable
-        width={window.width}
-        height={window.height}
+        width={width || 600}
+        height={height || 400}
         onResize={onResize}
         minConstraints={[200, 150]}
         handle={<div className="window-resize-handle" />}
       >
         <div
-          className={`window ${window.minimized ? 'minimized' : ''}`}
-          style={{ width: window.width, height: window.height, zIndex: window.zIndex }}
+          className={`window ${minimized ? 'minimized' : ''}`}
+          style={{ width: width || 600, height: height || 400, zIndex: zIndex || 'auto' }}
         >
           <div className="window-header">
             <span>{window.title}</span>
-            <button onClick={onClose}>×</button>
+            <div>
+              <button onClick={onMinimize}>—</button>
+              <button onClick={onClose}>×</button>
+            </div>
           </div>
-          <div className="window-body">{window.children}</div>
+          <div className="window-body">{children}</div>
         </div>
       </Resizable>
     </Draggable>

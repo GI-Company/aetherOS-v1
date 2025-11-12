@@ -14,7 +14,7 @@ func main() {
     api := r.PathPrefix("/v1").Subrouter()
 
     api.HandleFunc("/auth/login", loginHandler).Methods("POST")
-    api.HandleFunc("/services", servicesHandler).Methods("GET")
+    api.HandleFunc("/apps", appsHandler).Methods("GET")
     api.HandleFunc("/instances", createInstanceHandler).Methods("POST")
     api.HandleFunc("/instances/{id}/start", startInstanceHandler).Methods("POST")
     api.HandleFunc("/storage/kv/{key}", kvGetHandler).Methods("GET")
@@ -22,8 +22,8 @@ func main() {
     // WebSocket endpoint for IPC
     r.HandleFunc("/v1/sessions/{sid}/ws", wsHandler)
 
-    // serve frontend dist (relative)
-    dist := filepath.Join("..", "frontend", "dist")
+    // serve frontend dist (relative to project root)
+    dist := filepath.Join("frontend", "dist")
     if _, err := os.Stat(dist); os.IsNotExist(err) {
         log.Println("Warning: frontend dist missing, run frontend build or run dev server.")
     }

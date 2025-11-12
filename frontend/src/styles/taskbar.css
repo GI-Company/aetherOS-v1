@@ -1,0 +1,44 @@
+.taskbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  z-index: 2000;
+}
+
+.taskbar-windows {
+  display: flex;
+  height: 100%;
+}
+
+.taskbar-windows button {
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+  color: #333;
+  padding: 0 15px;
+  cursor: pointer;
+  height: 100%;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease-in-out;
+}
+
+.taskbar-windows button:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.taskbar-clock {
+  color: #333;
+  font-weight: 500;
+  padding-right: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
