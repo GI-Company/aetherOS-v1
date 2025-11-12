@@ -45,6 +45,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: width 0.2s ease-in-out, height 0.2s ease-in-out, top 0.2s ease-in-out, left 0.2s ease-in-out;
 }
 
 .window-header {
@@ -95,4 +96,14 @@
 
 .workspace-switcher button:hover {
   background: rgba(255,255,255,0.2);
+}
+
+.taskbar-clock {
+  margin-left: auto;
+  color: white;
+  font-size: 14px;
+}
+
+.grabbing {
+  cursor: grabbing;
 }

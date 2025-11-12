@@ -1,0 +1,10 @@
+@import './styles/desktop.css';
+@import './styles/glassmorphism.css';
+
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #1e1e1e;
+  color: #fff;
+  overflow: hidden; /* Hide scrollbars from the body */
+}
