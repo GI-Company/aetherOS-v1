@@ -3,8 +3,9 @@ package ai
 import (
 	"context"
 	"log"
+	"os"
 
-	"aether-broker/backend/bus"
+	"aether/backend/bus"
 	"google.golang.org/genai"
 	"google.golang.org/api/option"
 )
@@ -17,14 +18,19 @@ type AIService struct {
 }
 
 // NewAIService creates a new AIService
-func NewAIService(bus *bus.Bus, apiKey string) (*AIService, error) {
+func NewAIService(bus *bus.Bus) (*AIService, error) {
 	ctx := context.Background()
-	genaiClient, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("GEMINI_API_KEY environment variable not set")
+	}
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, err
 	}
 
-	model := genaiClient.GenerativeModel("gemini-1.5-pro")
+	model := client.GenerativeModel("gemini-1.5-pro")
 
 	return &AIService{
 		bus:    bus,

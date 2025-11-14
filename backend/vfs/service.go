@@ -3,7 +3,7 @@ package vfs
 import (
 	"log"
 
-	"aether-broker/backend/bus"
+	"aether/backend/bus"
 )
 
 // VFSService handles all file system operations

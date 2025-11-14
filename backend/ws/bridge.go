@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"aether-broker/backend/bus"
+	"aether/backend/bus"
 	"github.com/gorilla/websocket"
 )
 

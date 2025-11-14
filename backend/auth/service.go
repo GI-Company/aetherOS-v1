@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"aether-broker/backend/bus"
+	"aether/backend/bus"
 	"firebase.google.com/go/v4/auth"
 	"github.com/golang-jwt/jwt/v4"
 )
