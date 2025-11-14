@@ -1,15 +1,29 @@
 
 import React, { useEffect, useState } from 'react';
 import Desktop from './desktop/Desktop';
+import Taskbar from './desktop/Taskbar';
+import Dock from './desktop/Dock';
 import { AIAgentWindow, ComputeWindow, NotificationWindow, MarketplaceWindow } from './windows';
 import { restoreLayout, saveLayout } from './sdk/layoutManager';
 
 export default function App() {
   const [layout, setLayout] = useState({});
   const [windows, setWindows] = useState([]);
+  const [shortcuts, setShortcuts] = useState([]);
 
   useEffect(() => {
     restoreLayout((savedLayout) => setLayout(savedLayout));
+    fetch('/v1/apps')
+      .then(response => response.json())
+      .then(apps => {
+        const desktopShortcuts = apps.map(app => ({
+          id: app.id,
+          name: app.name,
+          icon: app.icon,
+          window: app.window,
+        }));
+        setShortcuts(desktopShortcuts);
+      });
   }, []);
 
   const handleLayoutChange = (newLayout) => {
@@ -74,5 +88,21 @@ export default function App() {
   };
 
 
-  return <Desktop windows={windows} layout={layout} onLayoutChange={handleLayoutChange} onOpenWindow={handleOpenWindow} onCloseWindow={handleCloseWindow} onMinimizeWindow={handleMinimizeWindow} advanceWindows={advanceWindows} onFocusWindow={handleFocusWindow}/>;
+  return (
+    <>
+      <Desktop 
+        windows={windows} 
+        layout={layout} 
+        shortcuts={shortcuts}
+        onLayoutChange={handleLayoutChange} 
+        onOpenWindow={handleOpenWindow} 
+        onCloseWindow={handleCloseWindow} 
+        onMinimizeWindow={handleMinimizeWindow} 
+        advanceWindows={advanceWindows} 
+        onFocusWindow={handleFocusWindow}
+      />
+      <Taskbar windows={windows} onOpenWindow={handleOpenWindow} />
+      <Dock onOpenWindow={handleOpenWindow} apps={shortcuts} />
+    </>
+  );
 }
