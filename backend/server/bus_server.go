@@ -1,58 +1,85 @@
-package main
+
+// =================================
+// backend/server/bus_server.go
+// =================================
+package server
 
 import (
-	"encoding/json"
-	"net/http"
-
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/websocket"
+	"context"
+	"sync"
+	"time"
 )
 
 type BusServer struct {
-	Broker *Broker
+	mu          sync.RWMutex
+	subscribers map[string][]func(*Message)
+	requests    map[string]chan *Message
 }
 
-func (s *BusServer) handlePublish(w http.ResponseWriter, r *http.Request) {
-	claims := FromContextClaims(r.Context())
-	// example: check sub claim exists
-	if claimsMap, ok := claims.(jwt.MapClaims); ok {
-		if _, ok := claimsMap["sub"].(string); !ok {
-			http.Error(w, "invalid claims", http.StatusUnauthorized)
-			return
+func NewBusServer() *BusServer {
+	return &BusServer{
+		subscribers: make(map[string][]func(*Message)),
+		requests:    make(map[string]chan *Message),
+	}
+}
+
+func (b *BusServer) Subscribe(topic string, handler func(*Message)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.subscribers[topic] = append(b.subscribers[topic], handler)
+}
+
+func (b *BusServer) Publish(msg *Message) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if subscribers, ok := b.subscribers[msg.Topic]; ok {
+		for _, handler := range subscribers {
+			go handler(msg)
 		}
 	}
-
-	var env Envelope
-	if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	s.Broker.Publish(&env)
-	w.WriteHeader(http.StatusAccepted)
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// Allow all connections
-		return true
-	},
+func (b *BusServer) PublishSync(topic string, payload map[string]interface{}, timeout time.Duration) *Message {
+	reqID := genUUID()
+	replyChan := make(chan *Message, 1)
+	b.mu.Lock()
+	b.requests[reqID] = replyChan
+	b.mu.Unlock()
+
+	defer func() {
+		b.mu.Lock()
+		delete(b.requests, reqID)
+		b.mu.Unlock()
+	}()
+
+	msg := &Message{
+		Topic:   topic,
+		Payload: payload,
+		Token:   reqID, // Using token to carry the request ID
+	}
+	b.Publish(msg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	select {
+	case reply := <-replyChan:
+		return reply
+	case <-ctx.Done():
+		return nil // Timeout
+	}
 }
 
-func (s *BusServer) handleWSSubscribe(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+func (b *BusServer) Reply(originalMsg *Message, replyPayload map[string]interface{}) {
+	reqID := originalMsg.Token
+	b.mu.RLock()
+	replyChan, ok := b.requests[reqID]
+	b.mu.RUnlock()
 
-	topic := r.URL.Query().Get("topic")
-	if topic == "" {
-		conn.Close()
-		return
+	if ok {
+		replyChan <- &Message{
+			Topic:   "reply:" + originalMsg.Topic,
+			Payload: replyPayload,
+		}
 	}
-
-	// Create a new client and subscribe it to the topic
-	client := NewClient(conn)
-	s.Broker.Subscribe(client, topic)
 }

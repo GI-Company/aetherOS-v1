@@ -2792,6 +2792,31 @@ func modelFromMldev(fromObject map[string]any, parentObject map[string]any) (toO
 		setValueByPath(toObject, []string{"supportedActions"}, fromSupportedActions)
 	}
 
+	fromTemperature := getValueByPath(fromObject, []string{"temperature"})
+	if fromTemperature != nil {
+		setValueByPath(toObject, []string{"temperature"}, fromTemperature)
+	}
+
+	fromMaxTemperature := getValueByPath(fromObject, []string{"maxTemperature"})
+	if fromMaxTemperature != nil {
+		setValueByPath(toObject, []string{"maxTemperature"}, fromMaxTemperature)
+	}
+
+	fromTopP := getValueByPath(fromObject, []string{"topP"})
+	if fromTopP != nil {
+		setValueByPath(toObject, []string{"topP"}, fromTopP)
+	}
+
+	fromTopK := getValueByPath(fromObject, []string{"topK"})
+	if fromTopK != nil {
+		setValueByPath(toObject, []string{"topK"}, fromTopK)
+	}
+
+	fromThinking := getValueByPath(fromObject, []string{"thinking"})
+	if fromThinking != nil {
+		setValueByPath(toObject, []string{"thinking"}, fromThinking)
+	}
+
 	return toObject, nil
 }
 
@@ -2948,7 +2973,7 @@ func recontextImageConfigToVertex(fromObject map[string]any, parentObject map[st
 
 	fromBaseSteps := getValueByPath(fromObject, []string{"baseSteps"})
 	if fromBaseSteps != nil {
-		setValueByPath(parentObject, []string{"parameters", "editConfig", "baseSteps"}, fromBaseSteps)
+		setValueByPath(parentObject, []string{"parameters", "baseSteps"}, fromBaseSteps)
 	}
 
 	fromOutputGcsUri := getValueByPath(fromObject, []string{"outputGcsUri"})
@@ -4600,11 +4625,24 @@ func (m Models) list(ctx context.Context, config *ListModelsConfig) (*ListModels
 		return nil, fmt.Errorf("invalid url params: %#v.\n%w", urlParams, err)
 	}
 	if _, ok := body["_query"]; ok {
-		query, err := createURLQuery(body["_query"].(map[string]any))
-		if err != nil {
-			return nil, err
+		if body["_query"].(map[string]any)["filter"] != nil {
+			filter := body["_query"].(map[string]any)["filter"].(string)
+			delete(body["_query"].(map[string]any), "filter")
+			query, err := createURLQuery(body["_query"].(map[string]any))
+			if err != nil {
+				return nil, err
+			}
+			if query != "" {
+				filter += "&"
+			}
+			path += "?filter=" + filter + query
+		} else {
+			query, err := createURLQuery(body["_query"].(map[string]any))
+			if err != nil {
+				return nil, err
+			}
+			path += "?" + query
 		}
-		path += "?" + query
 		delete(body, "_query")
 	}
 	responseMap, err = sendRequest(ctx, m.apiClient, path, http.MethodGet, body, httpOptions)
