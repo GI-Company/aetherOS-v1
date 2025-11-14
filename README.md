@@ -126,6 +126,10 @@ The AI service is a gateway to the powerful capabilities of Google's Gemini mode
 
 Aether is an open and experimental project. Contributions are welcome! If you'd like to get involved, please check out the open issues on GitHub. Feel free to fork the repository, make your changes, and submit a pull request.
 
+## Legal
+
+This project is governed by a set of legal documents, policies, and agreements. All legal information, including the proprietary license, SDK license, EULA, and other related documents, can be found in the [`LEGAL`](./LEGAL) directory. Please review these documents to understand your rights and obligations when using or contributing to this project.
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
