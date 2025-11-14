@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -11,7 +12,6 @@ type BusServer struct {
 	clients      map[string]*Client
 	serverSubs   map[string][]func(*Envelope)
 	requests     map[string]chan *Envelope
-	metrics      map[string]int64
 }
 
 // NewBusServer returns initialized BusServer
@@ -20,7 +20,6 @@ func NewBusServer() *BusServer {
 		clients:    make(map[string]*Client),
 		serverSubs: make(map[string][]func(*Envelope)),
 		requests:   make(map[string]chan *Envelope),
-		metrics:    make(map[string]int64),
 	}
 }
 
@@ -36,6 +35,9 @@ func (b *BusServer) UnregisterClient(id string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if c, ok := b.clients[id]; ok {
+		for topic := range c.Subscriptions {
+			activeSubscribers.WithLabelValues(topic).Dec()
+		}
 		close(c.Send)
 		delete(b.clients, id)
 	}
@@ -43,6 +45,37 @@ func (b *BusServer) UnregisterClient(id string) {
 
 // Publish sends envelope to server subscribers and clients subscribed to the topic.
 func (b *BusServer) Publish(env *Envelope) {
+	switch env.Topic {
+	case "bus.subscribe":
+		topic, ok := env.Payload["topic"].(string)
+		if !ok {
+			log.Println("Invalid bus.subscribe message: missing topic")
+			return
+		}
+		b.mu.Lock()
+		client, ok := b.clients[env.From]
+		if ok {
+			client.Subscriptions[topic] = true
+			activeSubscribers.WithLabelValues(topic).Inc()
+		}
+		b.mu.Unlock()
+		return
+	case "bus.unsubscribe":
+		topic, ok := env.Payload["topic"].(string)
+		if !ok {
+			log.Println("Invalid bus.unsubscribe message: missing topic")
+			return
+		}
+		b.mu.Lock()
+		client, ok := b.clients[env.From]
+		if ok {
+			delete(client.Subscriptions, topic)
+			activeSubscribers.WithLabelValues(topic).Dec()
+		}
+		b.mu.Unlock()
+		return
+	}
+
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	env.Time = time.Now()
@@ -60,14 +93,15 @@ func (b *BusServer) Publish(env *Envelope) {
 				// non-blocking send
 				select {
 				case c.Send <- env:
+					messagesPublished.WithLabelValues(env.Topic).Inc()
 				default:
 					// drop if client send buffer full
+					messagesDropped.WithLabelValues(env.Topic).Inc()
 				}
 				break
 			}
 		}
 	}
-	b.metrics["published"]++
 }
 
 // SubscribeServer registers a server-side handler for a topic
@@ -75,6 +109,7 @@ func (b *BusServer) SubscribeServer(topic string, handler func(*Envelope)) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.serverSubs[topic] = append(b.serverSubs[topic], handler)
+	activeSubscribers.WithLabelValues(topic).Inc()
 }
 
 // Request sends a request envelope and waits for reply channel with timeout

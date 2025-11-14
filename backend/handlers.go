@@ -5,17 +5,17 @@ import (
 	"net/http"
 )
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
+func loginHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"token": "dummy-token"})
 }
 
-func appsHandler(w http.ResponseWriter, r *http.Request) {
+func appsHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(getDesktopApps())
 }
 
-func createInstanceHandler(w http.ResponseWriter, r *http.Request) {
+func createInstanceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -24,11 +24,11 @@ func createInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
+func startInstanceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func kvGetHandler(w http.ResponseWriter, r *http.Request) {
+func kvGetHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"key": "value"})
 }
