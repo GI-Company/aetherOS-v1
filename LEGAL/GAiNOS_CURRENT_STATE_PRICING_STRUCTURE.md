@@ -1,4 +1,4 @@
-# **GAiNOS Current-State Pricing Structure**
+# **GAiNOS / AetherOS Current-State Pricing Structure**
 
 **Global Intent Company**
 *Owned and solely operated by Cory Tortorici*
@@ -8,64 +8,53 @@ For: **AetherOS / GAiNOS (Graphical AI Native Operating System)**
 
 ## **1. Overview**
 
-This structure reflects **the current operational version of GAiNOS**, including:
+This pricing structure reflects the **current state of the AetherOS / GAiNOS repo (v1)**:
 
-* Core OS functionality
-* GAiNOS SDK (developer tools)
-* Marketplace integration for apps
-* AI Core features in their current state
-* Standard Kernel and UI modules
-
-Pricing is tiered based on **type of user and intended deployment**.
+* Core OS is **open-source under Apache 2.0** (free for all users).
+* Paid tiers cover the **commercial edition**: SDK, Marketplace distribution, enterprise deployment, and advanced modules.
+* Clear distinction ensures compliance with the public repository while monetizing **value-added commercial features**.
 
 ---
 
-## **2. Tiered Pricing**
+## **2. Licensing Tiers**
 
-| Tier                        | Target User                  | Deployment / Users | License Fee    | Features Included                                                                   |
-| --------------------------- | ---------------------------- | ------------------ | -------------- | ----------------------------------------------------------------------------------- |
-| **Personal (Tier 1)**       | Individual users             | 1 device           | $49 / year     | Core OS, default AI, built-in apps                                                  |
-| **Developer (Tier 2)**      | Independent developers       | 1–3 devices        | $199 / year    | SDK access, developer tools, Marketplace app submission                             |
-| **Small Business (Tier 3)** | SMEs for internal operations | 3–20 devices       | $899 / year    | All Tier 2 features + multi-device support, API access                              |
-| **Enterprise (Tier 4)**     | Organizations 20+ devices    | Custom             | Custom pricing | All Tier 3 features + bulk deployment, priority updates, limited enterprise support |
+| Tier                    | Description                                     | Price       | Features Included                                                                                                       |
+| ----------------------- | ----------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Free Tier**           | Open-source core OS (v1 repo)                   | $0          | Basic OS functionality, default apps, read-only SDK, Apache 2.0 license                                                 |
+| **Developer Tier**      | Individual developers & Marketplace submission  | $199 / year | Full SDK access, ability to submit apps to GAiNOS Marketplace, access to experimental AI modules                        |
+| **Small Business Tier** | Internal business deployment (up to 20 devices) | $899 / year | All Developer Tier features, multi-device support, API access, standard technical support                               |
+| **Enterprise Tier**     | Large organizations, 20+ devices                | Custom      | All Small Business features + bulk deployment, priority updates, premium enterprise support, kernel integration options |
 
 ---
 
 ## **3. Marketplace Apps**
 
-* Free apps: No fee, 100% ownership remains with developer.
-* Paid apps: Developer earns **70% of revenue**, Global Intent Company receives **30%**.
-* Current Marketplace supports **subscription-based apps**: Revenue billed **monthly or annually**, with no extra fees for GAiNOS core use.
+* **Free Apps**: No fee; developers retain full ownership.
+* **Paid Apps**: Revenue split: **70% to developer**, **30% to Global Intent Company**.
+* **Subscription Apps**: Recurring monthly or annual billing, integrated with GAiNOS Marketplace.
 
 ---
 
-## **4. Feature-Based Add-Ons**
+## **4. Commercial Add-On Modules**
 
-For current state, optional add-ons are limited to:
+For the current state (commercial edition), optional modules include:
 
-| Feature               | Description                             | Price                    |
-| --------------------- | --------------------------------------- | ------------------------ |
-| Advanced AI Analytics | Extra AI processing for experimentation | $199 / year per device   |
-| Developer Pro Toolkit | Advanced debugging/emulation tools      | $99 / year per developer |
-| Marketplace Promotion | Featured listing for current apps       | $299 / app / year        |
+| Feature               | Description                         | Price                    |
+| --------------------- | ----------------------------------- | ------------------------ |
+| Advanced AI Analytics | Enhanced AI Core functionality      | $199 / year per device   |
+| Developer Pro Toolkit | Advanced debugging, emulation tools | $99 / year per developer |
+| Marketplace Promotion | Featured listing for apps           | $299 / app / year        |
 
-> These are **available now** with current GAiNOS functionality.
-
----
-
-## **5. Payment Terms**
-
-* Payment is **upfront for each license period**.
-* License fees are **non-refundable**.
-* Taxes or fees are the responsibility of the Licensee.
+> These modules are **not part of the open-source repo** and are only available under commercial licensing.
 
 ---
 
-## **6. Notes**
+## **5. Notes**
 
-1. This pricing reflects **current functionality only**. No future modules, kernel customization, or enterprise add-ons are included.
-2. Discounts or bundles may be offered on a **case-by-case basis**, primarily for small businesses or multi-device deployments.
-3. All pricing is **subject to revision** as GAiNOS features expand or additional modules are released.
+1. **Free vs Commercial Edition**: The **v1 repo remains open-source**, but paid tiers cover GAiNOS v2 / commercial edition with added value.
+2. Pricing is **subject to annual review** and may change as new modules or enterprise features are introduced.
+3. Discounts may be offered for **multi-device deployments or multi-year subscriptions**.
+4. Users deploying the free edition **remain bound by the Apache 2.0 license**, whereas commercial users are governed by the **GAiNOS Proprietary License and EULA**.
 
 ---
 

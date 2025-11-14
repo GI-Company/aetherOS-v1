@@ -59,68 +59,33 @@ npm run dev
 
 The Aether OS shell will now be accessible in your browser, typically at `http://localhost:5173`.
 
-## Troubleshooting
+## Pricing
 
-If you encounter issues while running the application, here are a few common problems and their solutions:
+This project includes both a free, open-source core and a commercial edition with advanced features.
 
-*   **Dependency Issues:** If you see errors related to missing packages, especially after adding a new dependency, run `go mod vendor` in the `backend` directory. This ensures that the `vendor` folder is in sync with `go.mod`.
-*   **`.env` File Not Found:** If the application can't find your `.env` file (and therefore your `GEMINI_API_KEY`), make sure the `godotenv.Load()` function in `backend/main.go` is pointing to the correct location. If your `.env` file is in the project root, the line should be `godotenv.Load("../.env")`.
-*   **Port Conflict ("address already in use"):** This error means another process is using the port the application needs (usually 8080). You can find and stop the conflicting process with the following command:
-    ```bash
-    kill $(lsof -t -i:8080)
-    ```
+### GAiNOS / AetherOS Pricing Overview
 
-## Usage
+| Tier                    | Price       | Users / Devices  | Key Features                                                                                                    |
+| ----------------------- | ----------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Free Tier**           | $0          | 1 device         | Open-source core OS, default apps, read-only SDK, Apache 2.0 license                                            |
+| **Developer Tier**      | $199 / year | 1–3 devices      | Full SDK access, Marketplace app submission, experimental AI modules                                            |
+| **Small Business Tier** | $899 / year | Up to 20 devices | All Developer features + multi-device support, API access, standard support                                     |
+| **Enterprise Tier**     | Custom      | 20+ devices      | All Small Business features + bulk deployment, priority updates, premium enterprise support, kernel integration |
 
-Interaction with the Aether kernel and its services is done via JSON messages sent over the WebSocket connection. The frontend `VFSProxy` and other future services will handle this communication.
+### Add-On Modules (Commercial Edition Only)
 
-For example, to write a file to the VFS, the frontend would send a message like this over the WebSocket:
+| Feature               | Price                  | Description                          |
+| --------------------- | ---------------------- | ------------------------------------ |
+| Advanced AI Analytics | $199 / year / device   | Enhanced AI Core functionality       |
+| Developer Pro Toolkit | $99 / year / developer | Advanced debugging & emulation tools |
+| Marketplace Promotion | $299 / app / year      | Featured app listing in Marketplace  |
 
-```json
-{
-  "topic": "vfs:write",
-  "payload": {
-    "path": "/home/user/welcome.txt",
-    "content": "Hello from Aether!"
-  }
-}
-```
+### Legend / Notes
 
-Similarly, to use the AI service, a message would be sent to the `ai:generate` topic:
-
-```json
-{
-  "topic": "ai:generate",
-  "payload": "Tell me a story about a brave robot."
-}
-```
-
-The kernel service would process the request and publish the response on a corresponding response topic (e.g., `ai:generate:resp`), which the frontend would be listening for.
-
-## Deeper Dive into Services
-
-The Aether kernel is built around a set of services that communicate over the message bus. Here's a closer look at the core services available.
-
-### Virtual File System (VFS)
-
-The VFS service provides a hierarchical file system abstraction. All file operations are broadcast over the WebSocket, allowing the frontend to stay in sync with any changes.
-
-**Topics:**
-
-*   `vfs:list`: Requests a listing of files and folders at a given path.
-    *   **Response:** `vfs:list:result` with a payload containing the file list.
-*   `vfs:create:file`: Creates a new empty file at the specified path.
-*   `vfs:create:folder`: Creates a new folder at the specified path.
-*   `vfs:delete`: Deletes a file or folder at the specified path.
-
-### AI Service
-
-The AI service is a gateway to the powerful capabilities of Google's Gemini models. It allows any part of the Aether system to leverage generative AI.
-
-**Topics:**
-
-*   `ai:generate`: Sends a prompt to the Gemini model for text generation.
-    *   **Response:** `ai:generate:resp` with the generated content from the model.
+* **Free Tier**: v1 repo remains open-source; Apache 2.0 licensed.
+* **Paid tiers**: GAiNOS v2 / commercial edition, governed by Proprietary License & EULA.
+* **Revenue Split**: Paid apps: 70% developer / 30% Global Intent Company.
+* **Enterprise**: Custom pricing based on deployment size and support requirements.
 
 ## Contributing
 
