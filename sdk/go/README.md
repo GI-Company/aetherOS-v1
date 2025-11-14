@@ -79,3 +79,7 @@ If you encounter issues while running the application, here are a few common pro
     ```bash
     kill $(lsof -t -i:8080)
     ```
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](../../LICENSE) file for details.

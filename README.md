@@ -2,6 +2,15 @@
 
 Aether is an experimental project to build a lightweight, browser-native operating system. It uses a Go-based microservices architecture to provide a runtime for applications, with a dedicated AI core powered by Google Gemini.
 
+## Key Features
+
+*   **AI-Powered Core:** Integrates with Google's Gemini models to provide powerful generative AI capabilities to the entire OS.
+*   **Browser-Native OS:** Runs entirely in the browser, providing a lightweight and portable operating system experience.
+*   **Microservices Architecture:** Built on a modular, Go-based backend with services for AI, authentication, and file management.
+*   **Real-Time Communication:** Uses WebSockets to enable real-time, bidirectional communication between the frontend and the backend.
+*   **User Authentication:** A complete authentication system that allows users to sign in and personalize their Aether experience.
+*   **Virtual File System (VFS):** A flexible VFS that proxies file operations to the frontend, which is responsible for persistence (e.g., using IndexedDB).
+
 ## Architecture
 
 The Aether ecosystem is composed of two main components working in concert:
@@ -17,12 +26,6 @@ The Aether ecosystem is composed of two main components working in concert:
 *   **Location:** `/` (Root Project)
 *   **Technology:** Go
 *   **Description:** This is the heart of the operating system. It's a Go-based application that runs as a single server. It is built on a microservice-style architecture where different kernel services (like VFS and AI) communicate over a central, in-process message bus.
-*   **Features:**
-    *   **Modular Services:** Key functionalities like the Virtual File System (VFS) and AI Service are implemented as independent services running within the kernel.
-    *   **Central Message Bus:** Services communicate asynchronously using a publish-subscribe model, allowing for a decoupled and extensible architecture.
-    *   **WebSocket Bridge:** Exposes the kernel's message bus to the frontend via a WebSocket connection, enabling real-time, bidirectional communication.
-    *   **AI Service:** Integrates with Google's Gemini models to provide powerful generative AI capabilities to the entire OS.
-    *   **Virtual File System:** A VFS service that proxies file operations to the frontend, which uses IndexedDB for persistence.
 
 ## Getting Started
 
@@ -126,12 +129,3 @@ Aether is an open and experimental project. Contributions are welcome! If you'd 
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
-
-## Roadmap
-
-This project is in its early stages. Here are some of the features and improvements planned for the future:
-
-*   **Application Runtime:** A more robust system for defining, installing, and running applications within Aether.
-*   **Persistent Storage:** Implementing client-side storage using IndexedDB to make the VFS truly persistent across sessions.
-*   **User Authentication:** Adding user accounts and authentication to personalize the Aether experience.
-*   **Expanded AI Services:** Integrating more of Gemini's capabilities, such as multimodal input (text and images) and streaming responses.
