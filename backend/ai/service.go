@@ -5,83 +5,79 @@ import (
 	"log"
 	"os"
 
-	"aether/backend/bus"
-	"google.golang.org/genai"
+	"aether/backend/server"
+	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
 
-// AIService handles all AI-related operations
+// AIService handles interactions with the generative AI model.
 type AIService struct {
-	bus    *bus.Bus
-	client *bus.Client
-	genAI  *genai.GenerativeModel
+	bus   *server.BusServer
+	model *genai.GenerativeModel
 }
 
-// NewAIService creates a new AIService
-func NewAIService(bus *bus.Bus) (*AIService, error) {
+// NewAIService creates and initializes a new AIService.
+func NewAIService(bus *server.BusServer) (*AIService, error) {
 	ctx := context.Background()
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("GEMINI_API_KEY environment variable not set")
-	}
-
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
 	if err != nil {
 		return nil, err
 	}
 
 	model := client.GenerativeModel("gemini-1.5-pro")
 
-	return &AIService{
-		bus:    bus,
-		client: &bus.Client{ID: "ai-service", Receive: make(chan bus.Message, 128)},
-		genAI:  model,
-	}, nil
-}
-
-// Start begins the AI service's message listening loop
-func (s *AIService) Start() {
-	log.Println("Starting AI Service")
-	s.bus.Subscribe("ai:generate", s.client)
-	go s.listen()
-}
-
-func (s *AIService) listen() {
-	for msg := range s.client.Receive {
-		if msg.Topic == "ai:generate" {
-			go s.handleGenerate(msg)
-		}
+	ai := &AIService{
+		bus:   bus,
+		model: model,
 	}
+
+	bus.SubscribeServer("ai:generate:text", ai.handleGenerateText)
+	log.Println("AI Service Started")
+	return ai, nil
 }
 
-func (s *AIService) handleGenerate(msg bus.Message) {
-	prompt, ok := msg.Payload.(string)
-	if !ok {
-		log.Println("AI service received invalid payload")
+func (ai *AIService) handleGenerateText(env *server.Envelope) {
+	// 1. Extract prompt and messageId from the payload
+	var prompt string
+	var messageID interface{}
+
+	if p, ok := env.Payload["prompt"].(string); ok {
+		prompt = p
+	} else {
+		log.Println("handleGenerateText: missing 'prompt' in payload")
 		return
 	}
 
-	log.Printf("AI Service received prompt: %s", prompt)
+	messageID, _ = env.Payload["messageId"] // It's ok if it's missing
 
-	ctx := context.Background()
-	resp, err := s.genAI.GenerateContent(ctx, genai.Text(prompt))
+	// 2. Generate content using the AI model
+	resp, err := ai.model.GenerateContent(context.Background(), genai.Text(prompt))
 	if err != nil {
-		log.Printf("error generating content: %v", err)
-		// Optionally, publish an error message back
+		log.Printf("handleGenerateText: error generating content: %v", err)
 		return
 	}
 
-	// Assuming the response can be represented as text
-	var responseText string
+	// 3. Extract the generated text
+	var generatedText string
 	for _, cand := range resp.Candidates {
 		if cand.Content != nil {
 			for _, part := range cand.Content.Parts {
 				if txt, ok := part.(genai.Text); ok {
-					responseText += string(txt)
+					generatedText += string(txt)
 				}
 			}
 		}
 	}
 
-	s.bus.Publish(bus.Message{Topic: "ai:generate:resp", Payload: responseText})
+	// 4. Publish the response
+	responsePayload := map[string]interface{}{"text": generatedText}
+	if messageID != nil {
+		responsePayload["messageId"] = messageID
+	}
+
+	responseEnv := &server.Envelope{
+		Topic:   "ai:generated:text",
+		Payload: responsePayload,
+	}
+	ai.bus.Publish(responseEnv)
 }

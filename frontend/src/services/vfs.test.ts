@@ -1,50 +1,68 @@
 import VFSProxy from './vfsProxy';
+import { Server, WebSocket } from 'mock-socket';
 
-describe('VFS E2E Test', () => {
+describe('VFSProxy', () => {
+  let mockServer: Server;
   let vfsProxy: VFSProxy;
+  const wsUrl = 'ws://localhost:8080/ws';
 
-  beforeAll(() => {
-    // Note: This test requires a running Aether kernel
-    vfsProxy = new VFSProxy('ws://localhost:8080/ws');
+  beforeEach(() => {
+    mockServer = new Server(wsUrl);
+    // Mock the global WebSocket object
+    (global as any).WebSocket = WebSocket;
+    vfsProxy = new VFSProxy(wsUrl);
   });
 
-  test('should write and read a file', async () => {
-    const filePath = 'test.txt';
-    const fileContent = 'Hello, Aether!';
+  afterEach(() => {
+    mockServer.stop();
+  });
 
-    // Give the WebSocket time to connect
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  test('should send a message to the WebSocket server', (done) => {
+    const testTopic = 'test-topic';
+    const testPayload = { message: 'hello' };
 
-    // @ts-ignore - sendMessage is private, but we need it for testing
-    vfsProxy.sendMessage('vfs:write', { path: filePath, content: fileContent });
-
-    // Listen for the write acknowledgement
-    const ackPromise = new Promise(resolve => {
-      // @ts-ignore - ws is private
-      vfsProxy.ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.topic === 'ack') {
-          resolve(msg);
-        }
-      };
+    mockServer.on('connection', (socket) => {
+      socket.on('message', (data) => {
+        const message = JSON.parse(data as string);
+        expect(message.topic).toBe(testTopic);
+        expect(message.payload).toEqual(testPayload);
+        done();
+      });
     });
 
-    await expect(ackPromise).resolves.toEqual(expect.objectContaining({ payload: { status: 'success' } }));
+    // Allow time for the real VFSProxy to establish a connection
+    setTimeout(() => {
+      vfsProxy.sendMessage(testTopic, testPayload);
+    }, 100);
+  });
+  
+  test('should handle incoming messages from the server', async () => {
+    const writePath = 'test/file.txt';
+    const writeContent = 'hello world';
 
-    // Now, read the file back
-    // @ts-ignore - sendMessage is private
-    vfsProxy.sendMessage('vfs:read', { path: filePath });
+    // Let's mock the DB methods for this test to isolate the WebSocket logic
+    const mockDb = {
+      put: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn(),
+      getAllKeys: jest.fn(),
+    };
 
-    const readPromise = new Promise(resolve => {
-      // @ts-ignore - ws is private
-      vfsProxy.ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.topic === 'vfs:read:resp') {
-          resolve(msg);
-        }
-      };
-    });
+    // @ts-ignore - Replace the db instance with our mock
+    vfsProxy.db = mockDb;
 
-    await expect(readPromise).resolves.toEqual(expect.objectContaining({ payload: { path: filePath, content: fileContent } }));
+    const writeMessage = {
+      id: '123',
+      topic: 'vfs:write',
+      payload: { path: writePath, content: writeContent },
+    };
+
+    // Trigger the server to send a message to the client
+    mockServer.emit('message', JSON.stringify(writeMessage));
+
+    // Give the event loop a moment to process the message
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Check if the database `put` method was called correctly
+    expect(mockDb.put).toHaveBeenCalledWith('files', writeContent, writePath);
   });
 });

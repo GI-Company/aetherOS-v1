@@ -1,169 +1,89 @@
-
-// ===========================
-// backend/server/hub.go
-// ===========================
 package server
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// Allow all connections by default.
-		// In a production environment, you should implement a proper origin check.
-		return true
-	},
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-// Client is a middleman between the websocket connection and the hub.
-type Client struct {
-	hub      *Hub
-	conn     *websocket.Conn
-	send     chan []byte
-	isClosed bool
-	mu       sync.Mutex
-}
-
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
 type Hub struct {
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
-	bus        *BusServer
+	bus      *BusServer
+	clients  map[string]*Client
+	clientsM sync.RWMutex
 }
 
 func NewHub(bus *BusServer) *Hub {
-	hub := &Hub{
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
-		bus:        bus,
-	}
-	// Subscribe the Hub to all topics on the bus, so it can forward them.
-	// We use a wildcard subscription.
-	hub.bus.Subscribe("*", hub.handleBusMessage)
-	return hub
+	return &Hub{bus: bus, clients: make(map[string]*Client)}
 }
 
-func (h *Hub) Run() {
-	for {
-		select {
-		case client := <-h.register:
-			h.clients[client] = true
-		case client := <-h.unregister:
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				client.mu.Lock()
-				if !client.isClosed {
-					close(client.send)
-					client.isClosed = true
-				}
-				client.mu.Unlock()
-			}
-		case message := <-h.broadcast:
-			for client := range h.clients {
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
-				}
-			}
-		}
-	}
-}
-
-// handleBusMessage is a callback for the BusServer. It forwards messages from the bus
-// to the WebSocket clients.
-func (h *Hub) handleBusMessage(msg *Message) {
-	// Don't forward messages that came from a WebSocket client back to it.
-	// This prevents infinite loops. The 'Source' will be the client's connection pointer.
-	if msg.Source != nil {
-		if _, ok := msg.Source.(*Client); ok {
-			return // This message originated from a client, don't broadcast it back.
-		}
-	}
-
-	jsonMsg, err := json.Marshal(msg)
+func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("error marshaling bus message to JSON: %v", err)
+		log.Println("upgrade error:", err)
 		return
 	}
-	h.broadcast <- jsonMsg
+
+	client := &Client{
+		ID:            genUUID(),
+		Conn:          conn,
+		Send:          make(chan *Envelope, 128),
+		Subscriptions: make(map[string]bool),
+	}
+
+	h.clientsM.Lock()
+	h.clients[client.ID] = client
+	h.clientsM.Unlock()
+
+	// register client with bus
+	h.bus.RegisterClient(client)
+
+	// start read/write pumps
+	go h.readPump(client)
+	go h.writePump(client)
 }
 
-func (c *Client) readPump() {
+func (h *Hub) readPump(c *Client) {
 	defer func() {
-		c.hub.unregister <- c
-		c.conn.Close()
+		// cleanup
+		h.clientsM.Lock()
+		delete(h.clients, c.ID)
+		h.clientsM.Unlock()
+
+		h.bus.UnregisterClient(c.ID)
+		c.Conn.Close()
 	}()
+
+	c.Conn.SetReadLimit(8192)
+	// No initial read deadline, rely on ping/pong for keepalive
+
 	for {
-		_, message, err := c.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
-			}
+		var env Envelope
+		if err := c.Conn.ReadJSON(&env); err != nil {
+			log.Println("read json err:", err)
 			break
 		}
 
-		var msg Message
-		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Printf("error unmarshaling message from client: %v", err)
-			continue
-		}
-		// Set the source of the message to the client pointer.
-		// This allows other parts of the system to know the message origin.
-		msg.Source = c
-		// Publish the message to the bus.
-		c.hub.bus.Publish(&msg)
+		// Let the bus handle all the routing logic
+		env.From = c.ID
+		h.bus.Publish(&env)
 	}
 }
 
-func (c *Client) writePump() {
-	defer func() {
-		c.conn.Close()
-	}()
-	for {
-		message, ok := <-c.send
-		if !ok {
-			// The hub closed the channel.
-			c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-			return
-		}
-
-		w, err := c.conn.NextWriter(websocket.TextMessage)
-		if err != nil {
-			return
-		}
-		w.Write(message)
-
-		if err := w.Close(); err != nil {
+func (h *Hub) writePump(c *Client) {
+	for env := range c.Send {
+		c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		if err := c.Conn.WriteJSON(env); err != nil {
+			log.Println("write json err:", err)
 			return
 		}
 	}
-}
-
-// HandleWebSocket handles websocket requests from the peer.
-func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	client := &Client{hub: h, conn: conn, send: make(chan []byte, 256)}
-	client.hub.register <- client
-
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go client.writePump()
-	go client.readPump()
 }

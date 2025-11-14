@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"aether-broker/services/vfs"
+	"aether/services/vfs"
 	"github.com/gorilla/websocket"
 )
 

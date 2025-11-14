@@ -1,8 +1,6 @@
-package main
+package server
 
 import (
-	"net/http"
-
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"

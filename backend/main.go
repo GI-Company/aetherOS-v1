@@ -1,40 +1,42 @@
 package main
 
 import (
-    "log"
-    "net/http"
-    "os"
-    "path/filepath"
+	"log"
+	"net/http"
+	"time"
 
-    "github.com/gorilla/mux"
+	"aether/backend/ai"
+	"aether/backend/server"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-    r := mux.NewRouter()
-    api := r.PathPrefix("/v1").Subrouter()
+	// Load .env file from the parent directory
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Println("No .env file found, using environment variables")
+	}
 
-    api.HandleFunc("/auth/login", loginHandler).Methods("POST")
-    api.HandleFunc("/apps", appsHandler).Methods("GET")
-    api.HandleFunc("/instances", createInstanceHandler).Methods("POST")
-    api.HandleFunc("/instances/{id}/start", startInstanceHandler).Methods("POST")
-    api.HandleFunc("/storage/kv/{key}", kvGetHandler).Methods("GET")
+	bus := server.NewBusServer()
+	cache := server.NewPersistentCache(2048, 30*time.Minute, bus)
+	sess := server.NewSessionManager(cache)
+	_ = server.NewAppManager(bus, sess)
+	_ = server.NewVFSService(bus)
+	_ = server.NewWasmRunner(bus)
+	_ = server.NewAuthService()
+	// bus.Auth = auth
 
-    // WebSocket endpoint for IPC
-    r.HandleFunc("/v1/sessions/{sid}/ws", wsHandler)
+	_, err = ai.NewAIService(bus)
+	if err != nil {
+		log.Fatalf("Failed to create AI service: %v", err)
+	}
 
-    // serve frontend dist (relative to project root)
-    dist := filepath.Join("frontend", "dist")
-    if _, err := os.Stat(dist); os.IsNotExist(err) {
-        log.Println("Warning: frontend dist missing, run frontend build or run dev server.")
-    }
-    r.PathPrefix("/").Handler(http.FileServer(http.Dir(dist)))
+	hub := server.NewHub(bus)
+	mux := server.NewServerMux(hub)
 
-    port := getEnv("PORT", "8080")
-    log.Printf("Listening on :%s", port)
-    log.Fatal(http.ListenAndServe(":"+port, r))
-}
-
-func getEnv(k, fallback string) string {
-    if v := os.Getenv(k); v != "" { return v }
-    return fallback
+	log.Println("Aether kernel starting on :8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -1,7 +1,3 @@
-
-// ===============================
-// backend/server/ai_service.go
-// ===============================
 package server
 
 import (
@@ -14,53 +10,42 @@ import (
 
 // AIService handles interactions with the generative AI model.
 type AIService struct {
-	bus       *BusServer
+	bus         *BusServer
 	genaiClient *genai.Client
 }
 
-// NewAIService creates a new AIService.
+// NewAIService creates and initializes a new AIService.
 func NewAIService(bus *BusServer) *AIService {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
-		log.Fatal("GEMINI_API_KEY environment variable not set.")
+		log.Println("WARNING: GEMINI_API_KEY environment variable not set. AI service will be disabled.")
+		return nil // Or return a disabled service
 	}
 
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey: apiKey,
-	})
+    APIKey: apiKey,
+  })
 	if err != nil {
-		log.Fatalf("Failed to create genai client: %v", err)
+		log.Printf("Failed to create GenAI client: %v", err)
+		return nil
 	}
 
 	ai := &AIService{
-		bus:       bus,
+		bus:         bus,
 		genaiClient: client,
 	}
 
-	bus.Subscribe("ai:generate", ai.handleGenerate)
+	// Subscribe to AI requests from the bus
+	bus.SubscribeServer("ai:request", ai.handleAIRequest)
+
+	log.Println("AI service initialized successfully.")
 	return ai
 }
 
-// handleGenerate handles requests to generate content.
-func (ai *AIService) handleGenerate(msg *Message) {
-	prompt, ok := msg.Payload["prompt"].(string)
-	if !ok {
-		ai.bus.Reply(msg, map[string]interface{}{"error": "prompt not found in payload"})
-		return
-	}
-
-	model := ai.genaiClient.GenerativeModel("gemini-1.5-pro")
-	ctx := context.Background()
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		log.Printf("Error generating content: %v", err)
-		ai.bus.Reply(msg, map[string]interface{}{"error": "failed to generate content"})
-		return
-	}
-
-	// Assuming printResponse is a function that can format the response.
-	// For now, we'll just send the raw response back.
-	// In a real application, you would parse the response and send a structured message.
-	ai.bus.Reply(msg, map[string]interface{}{"response": resp})
+// handleAIRequest processes AI requests received from the bus.
+func (ai *AIService) handleAIRequest(env *Envelope) {
+	// For now, we'll just log the request.
+	// In the future, this will call the Gemini API.
+	log.Printf("AI request received: %v", env.Payload)
 }

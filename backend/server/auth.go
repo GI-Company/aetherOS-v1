@@ -1,57 +1,35 @@
 package server
 
-import (
-	"context"
-	"net/http"
-	"os"
-	"strings"
+import "sync"
 
-	"github.com/golang-jwt/jwt/v5"
-)
+type AuthService struct {
+	mu     sync.RWMutex
+	tokens map[string][]string // token -> caps
+}
 
-// contextKey is a custom type to avoid key collisions in context.
-type contextKey string
+func NewAuthService() *AuthService {
+	return &AuthService{tokens: make(map[string][]string)}
+}
 
-const ( 
-    // ClaimsKey is the key for JWT claims in the context
-	ClaimsKey contextKey = "claims"
-)
+func (a *AuthService) IssueToken(caps []string) string {
+	t := genUUID()
+	a.mu.Lock()
+	a.tokens[t] = caps
+	a.mu.Unlock()
+	return t
+}
 
-// JWTMiddleware validates a JWT and adds the claims to the request context.
-func JWTMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
-			return
+func (a *AuthService) ValidateCaps(token string, need string) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	caps, ok := a.tokens[token]
+	if !ok {
+		return false
+	}
+	for _, c := range caps {
+		if c == need {
+			return true
 		}
-
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
-			return
-		}
-
-		tokenString := parts[1]
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "aether-dev-secret"
-		}
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
-		})
-
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			ctx := context.WithValue(r.Context(), ClaimsKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
-		}
-	})
+	}
+	return false
 }

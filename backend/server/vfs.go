@@ -1,112 +1,38 @@
-
-// ===========================
-// backend/server/vfs.go
-// ===========================
 package server
 
 import (
-	"fmt"
-	"strings"
-	"sync"
+	"log"
 )
 
+// VFSService handles all file system operations
 type VFSService struct {
-	bus      *BusServer
-	mu       sync.RWMutex
-	root     *VFSNode
+	bus *BusServer
 }
 
-type VFSNode struct {
-	name     string
-	isDir    bool
-	content  []byte
-	children map[string]*VFSNode
-}
-
+// NewVFSService creates a new VFSService
 func NewVFSService(bus *BusServer) *VFSService {
-	vfs := &VFSService{
+	v := &VFSService{
 		bus: bus,
-		root: &VFSNode{name: "/", isDir: true, children: make(map[string]*VFSNode)},
 	}
-	bus.Subscribe("vfs:read", vfs.handleRead)
-	bus.Subscribe("vfs:write", vfs.handleWrite)
-	return vfs
+	bus.SubscribeServer("vfs:write", v.handleWrite)
+	bus.SubscribeServer("vfs:read", v.handleRead)
+	bus.SubscribeServer("vfs:list", v.handleList)
+	log.Println("VFS Service Started")
+	return v
 }
 
-func (vfs *VFSService) Read(path string) ([]byte, error) {
-	vfs.mu.RLock()
-	defer vfs.mu.RUnlock()
-
-	parts := strings.Split(path, "/")
-	curr := vfs.root
-
-	for i, part := range parts {
-		if part == "" {
-			continue
-		}
-		node, ok := curr.children[part]
-		if !ok {
-			return nil, fmt.Errorf("path not found: %s", path)
-		}
-		if i == len(parts)-1 {
-			if node.isDir {
-				return nil, fmt.Errorf("path is a directory: %s", path)
-			}
-			return node.content, nil
-		}
-		curr = node
-	}
-	return nil, fmt.Errorf("path not found: %s", path)
+func (v *VFSService) handleWrite(env *Envelope) {
+	log.Printf("VFS Service received write request: %+v", env.Payload)
+	// 1. Validate token caps (Phase 1.4)
+	// 2. Resolve path, check permissions
+	// 3. Forward message to frontend storage proxy
+	//    (This will require the WebSocket bridge to be connected to the bus)
 }
 
-func (vfs *VFSService) Write(path string, data []byte) error {
-	vfs.mu.Lock()
-	defer vfs.mu.Unlock()
-
-	parts := strings.Split(path, "/")
-	curr := vfs.root
-
-	for i, part := range parts {
-		if part == "" {
-			continue
-		}
-		if i == len(parts)-1 {
-			curr.children[part] = &VFSNode{name: part, content: data}
-		} else {
-			node, ok := curr.children[part]
-			if !ok || !node.isDir {
-                // For simplicity, we automatically create directories that don't exist
-                newNode := &VFSNode{name: part, isDir: true, children: make(map[string]*VFSNode)}
-                curr.children[part] = newNode
-                curr = newNode
-			} else {
-                curr = node
-            }
-		}
-	}
-	return nil
+func (v *VFSService) handleRead(env *Envelope) {
+	log.Printf("VFS Service received read request: %+v", env.Payload)
 }
 
-
-func (vfs *VFSService) handleRead(msg *Message) {
-    path := msg.Payload["path"].(string)
-    // TODO: Auth checks
-    content, err := vfs.Read(path)
-    if err != nil {
-        vfs.bus.Reply(msg, map[string]interface{}{"error": err.Error()})
-        return
-    }
-    vfs.bus.Reply(msg, map[string]interface{}{"content": content})
-}
-
-func (vfs *VFSService) handleWrite(msg *Message) {
-    path := msg.Payload["path"].(string)
-    content := msg.Payload["content"].([]byte)
-    // TODO: Auth checks
-    err := vfs.Write(path, content)
-    if err != nil {
-        vfs.bus.Reply(msg, map[string]interface{}{"error": err.Error()})
-        return
-    }
-    vfs.bus.Reply(msg, map[string]interface{}{"success": true})
+func (v *VFSService) handleList(env *Envelope) {
+	log.Printf("VFS Service received list request: %+v", env.Payload)
 }

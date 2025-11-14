@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"aether-broker/broker/aether"
+	"aether/broker/aether"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )

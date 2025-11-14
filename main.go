@@ -1,9 +1,9 @@
-
 package main
 
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"aether/backend/server"
 	"github.com/gorilla/mux"
@@ -12,16 +12,16 @@ import (
 func main() {
 	bus := server.NewBusServer()
 	hub := server.NewHub(bus)
-	go hub.Run()
 
-	vfs := server.NewVFSService(bus)
-	sess := server.NewSessionManager(bus, vfs)
-	_ = server.NewAppManager(bus, vfs, sess)
+	cache := server.NewPersistentCache(100, 10*time.Minute, bus)
+	server.NewVFSService(bus)
+	sess := server.NewSessionManager(cache)
+	_ = server.NewAppManager(bus, sess)
 	_ = server.NewAIService(bus) // Initialize the AI service
 
 	r := mux.NewRouter()
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		hub.HandleWebSocket(w, r)
+		hub.ServeWS(w, r)
 	})
 
 	r.HandleFunc("/aetherscript", func(w http.ResponseWriter, r *http.Request) {

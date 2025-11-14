@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"aether-broker/broker/aether"
-	"aether-broker/broker/server"
-	aethersdk "aether-broker/sdk"
+	"aether/broker/aether"
+	"aether/broker/server"
+	aethersdk "aether/sdk"
 
 	"github.com/gorilla/mux"
 )

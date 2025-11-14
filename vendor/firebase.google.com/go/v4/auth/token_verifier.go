@@ -174,7 +174,7 @@ func (tv *tokenVerifier) VerifyToken(ctx context.Context, token string, isEmulat
 		return payload, nil
 	}
 
-	// Verifying the signature requires synchronized access to a key cache and
+	// Verifying the signature requires syncronized access to a key cache and
 	// potentially issues an http request. Therefore we do it last.
 	if err := tv.verifySignature(ctx, token); err != nil {
 		return nil, err
@@ -432,7 +432,10 @@ func (k *httpKeySource) refreshKeys(ctx context.Context) error {
 		return err
 	}
 
-	maxAge := findMaxAge(resp)
+	maxAge, err := findMaxAge(resp)
+	if err != nil {
+		return err
+	}
 
 	k.CachedKeys = append([]*publicKey(nil), newKeys...)
 	k.ExpiryTime = k.Clock.Now().Add(*maxAge)
@@ -473,7 +476,7 @@ func parsePublicKey(kid string, key []byte) (*publicKey, error) {
 	return &publicKey{kid, pk}, nil
 }
 
-func findMaxAge(resp *http.Response) *time.Duration {
+func findMaxAge(resp *http.Response) (*time.Duration, error) {
 	cc := resp.Header.Get("cache-control")
 	for _, value := range strings.Split(cc, ",") {
 		value = strings.TrimSpace(value)
@@ -481,12 +484,11 @@ func findMaxAge(resp *http.Response) *time.Duration {
 			sep := strings.Index(value, "=")
 			seconds, err := strconv.ParseInt(value[sep+1:], 10, 64)
 			if err != nil {
-				seconds = 0
+				return nil, err
 			}
 			duration := time.Duration(seconds) * time.Second
-			return &duration
+			return &duration, nil
 		}
 	}
-	defaultDuration := time.Duration(0) * time.Second
-	return &defaultDuration
+	return nil, errors.New("Could not find expiry time from HTTP headers")
 }

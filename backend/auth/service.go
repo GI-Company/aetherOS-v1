@@ -6,52 +6,35 @@ import (
 	"log"
 	"time"
 
-	"aether/backend/bus"
+	"aether/backend/server"
 	"firebase.google.com/go/v4/auth"
-	"github.com/golang-jwt/jwt/v4"
+	jwt "github.com/golang-jwt/jwt/v4"
 )
 
 // AuthService handles user authentication and session management using Firebase.
 type AuthService struct {
-	bus        *bus.Bus
-	client     *bus.Client
+	bus        *server.BusServer
 	fbAuthClient *auth.Client
 	jwtSecret  []byte
 }
 
 // NewAuthService creates a new AuthService.
-func NewAuthService(bus *bus.Bus, fbAuthClient *auth.Client, jwtSecret string) *AuthService {
-	return &AuthService{
+func NewAuthService(bus *server.BusServer, fbAuthClient *auth.Client, jwtSecret string) *AuthService {
+	a := &AuthService{
 		bus:        bus,
-		client:     &bus.Client{ID: "auth-service", Receive: make(chan bus.Message, 128)},
 		fbAuthClient: fbAuthClient,
 		jwtSecret:  []byte(jwtSecret),
 	}
+	a.bus.SubscribeServer("auth:verify:token", a.handleVerifyToken)
+	a.bus.SubscribeServer("auth:verify:jwt", a.handleVerifyJWT)
+	return a
 }
 
-// Start begins the AuthService's message listening loop.
-func (s *AuthService) Start() {
-	log.Println("Starting Auth Service")
-	s.bus.Subscribe("auth:verify:token", s.client)
-	s.bus.Subscribe("auth:verify:jwt", s.client)
-	go s.listen()
-}
-
-func (s *AuthService) listen() {
-	for msg := range s.client.Receive {
-		switch msg.Topic {
-		case "auth:verify:token":
-			go s.handleVerifyToken(msg)
-		case "auth:verify:jwt":
-			go s.handleVerifyJWT(msg)
-		}
-	}
-}
 
 // handleVerifyToken receives a Firebase ID token from the frontend,
 // verifies it, and if successful, issues a custom Aether session token.
-func (s *AuthService) handleVerifyToken(msg bus.Message) {
-	idToken, ok := msg.Payload.(string)
+func (s *AuthService) handleVerifyToken(env *server.Envelope) {
+	idToken, ok := env.Payload["token"].(string)
 	if !ok {
 		log.Println("Auth service received invalid payload for token verification")
 		return
@@ -60,7 +43,7 @@ func (s *AuthService) handleVerifyToken(msg bus.Message) {
 	token, err := s.fbAuthClient.VerifyIDToken(context.Background(), idToken)
 	if err != nil {
 		log.Printf("Error verifying Firebase ID token: %v", err)
-		s.bus.Publish(bus.Message{Topic: "auth:verify:failed", Payload: err.Error()})
+		// Ideally, send a reply with an error
 		return
 	}
 
@@ -70,11 +53,18 @@ func (s *AuthService) handleVerifyToken(msg bus.Message) {
 	aetherToken, err := s.generateAetherJWT(token.UID, token.Claims["email"].(string))
 	if err != nil {
 		log.Printf("Error generating Aether JWT: %v", err)
-		s.bus.Publish(bus.Message{Topic: "auth:verify:failed", Payload: "could not generate session token"})
+		// Ideally, send a reply with an error
 		return
 	}
 
-	s.bus.Publish(bus.Message{Topic: "auth:verify:success", Payload: aetherToken})
+	reply := &server.Envelope{
+		Topic: "auth:verify:success",
+		Payload: map[string]interface{}{"token": aetherToken},
+	}
+	if requestID, ok := env.Payload["_request_id"].(string); ok {
+		reply.Payload["_reply_to"] = requestID
+	}
+	s.bus.Publish(reply)
 }
 
 func (s *AuthService) generateAetherJWT(uid, email string) (string, error) {
@@ -90,8 +80,8 @@ func (s *AuthService) generateAetherJWT(uid, email string) (string, error) {
 }
 
 // handleVerifyJWT verifies an Aether session JWT.
-func (s *AuthService) handleVerifyJWT(msg bus.Message) {
-	tokenString, ok := msg.Payload.(string)
+func (s *AuthService) handleVerifyJWT(env *server.Envelope) {
+	tokenString, ok := env.Payload["token"].(string)
 	if !ok {
 		log.Println("Auth service received invalid payload for JWT verification")
 		return
@@ -105,13 +95,20 @@ func (s *AuthService) handleVerifyJWT(msg bus.Message) {
 	})
 
 	if err != nil {
-		s.bus.Publish(bus.Message{Topic: "auth:jwt:invalid", OriginalMessage: &msg, Payload: err.Error()})
+		// Ideally, send a reply with an error
 		return
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		s.bus.Publish(bus.Message{Topic: "auth:jwt:valid", OriginalMessage: &msg, Payload: claims})
+		reply := &server.Envelope{
+			Topic: "auth:jwt:valid",
+			Payload: map[string]interface{}{"claims": claims},
+		}
+		if requestID, ok := env.Payload["_request_id"].(string); ok {
+			reply.Payload["_reply_to"] = requestID
+		}
+		s.bus.Publish(reply)
 	} else {
-		s.bus.Publish(bus.Message{Topic: "auth:jwt:invalid", OriginalMessage: &msg, Payload: "invalid token"})
+		// Ideally, send a reply with an error
 	}
 }

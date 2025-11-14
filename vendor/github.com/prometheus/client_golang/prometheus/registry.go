@@ -21,17 +21,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	"github.com/cespare/xxhash/v2"
-	dto "github.com/prometheus/client_model/go"
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
-	"google.golang.org/protobuf/proto"
+
+	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 const (
@@ -314,17 +315,16 @@ func (r *Registry) Register(c Collector) error {
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
-			continue
-		}
-
-		// ...then check the new descriptors already seen.
-		if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
-			if dimHash != desc.dimHash {
-				return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+		} else {
+			// ...then check the new descriptors already seen.
+			if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
+				if dimHash != desc.dimHash {
+					return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+				}
+			} else {
+				newDimHashesByName[desc.fqName] = desc.dimHash
 			}
-			continue
 		}
-		newDimHashesByName[desc.fqName] = desc.dimHash
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
@@ -549,7 +549,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			goroutineBudget--
 			runtime.Gosched()
 		}
-		// Once both checkedMetricChan and uncheckedMetricChan are closed
+		// Once both checkedMetricChan and uncheckdMetricChan are closed
 		// and drained, the contraption above will nil out cmc and umc,
 		// and then we can leave the collect loop here.
 		if cmc == nil && umc == nil {
@@ -933,10 +933,6 @@ func checkMetricConsistency(
 		h.WriteString(lp.GetValue())
 		h.Write(separatorByteSlice)
 	}
-	if dtoMetric.TimestampMs != nil {
-		h.WriteString(strconv.FormatInt(*(dtoMetric.TimestampMs), 10))
-		h.Write(separatorByteSlice)
-	}
 	hSum := h.Sum64()
 	if _, exists := metricHashes[hSum]; exists {
 		return fmt.Errorf(
@@ -964,7 +960,7 @@ func checkDescConsistency(
 	// Is the desc consistent with the content of the metric?
 	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
 	copy(lpsFromDesc, desc.constLabelPairs)
-	for _, l := range desc.variableLabels.names {
+	for _, l := range desc.variableLabels {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
 			Name: proto.String(l),
 		})

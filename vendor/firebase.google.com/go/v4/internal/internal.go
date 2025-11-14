@@ -50,7 +50,6 @@ type HashConfig map[string]interface{}
 type InstanceIDConfig struct {
 	Opts      []option.ClientOption
 	ProjectID string
-	Version   string
 }
 
 // DatabaseConfig represents the configuration of Firebase Database service.
@@ -69,13 +68,6 @@ type StorageConfig struct {
 
 // MessagingConfig represents the configuration of Firebase Cloud Messaging service.
 type MessagingConfig struct {
-	Opts      []option.ClientOption
-	ProjectID string
-	Version   string
-}
-
-// RemoteConfigClientConfig represents the configuration of Firebase Remote Config
-type RemoteConfigClientConfig struct {
 	Opts      []option.ClientOption
 	ProjectID string
 	Version   string

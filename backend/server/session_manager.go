@@ -1,7 +1,3 @@
-
-// =================================
-// backend/server/session_manager.go
-// =================================
 package server
 
 import (
@@ -9,52 +5,27 @@ import (
 )
 
 type SessionManager struct {
-	bus *BusServer
-	vfs *VFSService
-    session *Session
+	cache *PersistentCache
 }
 
-type Session struct {
-    Username string `json:"username"`
-    // Other session data would go here
+func NewSessionManager(cache *PersistentCache) *SessionManager {
+	return &SessionManager{cache: cache}
 }
 
-func NewSessionManager(bus *BusServer, vfs *VFSService) *SessionManager {
-    sm := &SessionManager{bus: bus, vfs: vfs}
-    bus.Subscribe("session:save", sm.handleSaveSession)
-    sm.LoadSession() // Try to load the session on startup
-    return sm
+func (s *SessionManager) SaveSession(sessionID string, data interface{}) error {
+	s.cache.Set("session:"+sessionID, data)
+	s.cache.Snapshot("session:" + sessionID)
+	return nil
 }
 
-func (s *SessionManager) LoadSession() error {
-    data, err := s.vfs.Read("/sessions/latest/session.json")
-    if err != nil {
-        // If the file doesn't exist, create a default session
-        s.session = &Session{Username: "guest"}
-        return s.SaveSession()
-    }
-    var session Session
-    if err := json.Unmarshal(data, &session); err != nil {
-        return err
-    }
-    s.session = &session
-    return nil
+func (s *SessionManager) LoadSession(sessionID string) (interface{}, bool) {
+	v, ok := s.cache.Get("session:" + sessionID)
+	return v, ok
 }
 
-func (s *SessionManager) SaveSession() error {
-	data, err := json.Marshal(s.session)
-    if err != nil {
-        return err
-    }
-	return s.vfs.Write("/sessions/latest/session.json", data)
-}
-
-func (s *SessionManager) handleSaveSession(msg *Message) {
-    // In a real app, we would update the session from the message payload
-    err := s.SaveSession()
-    if err != nil {
-        s.bus.Reply(msg, map[string]interface{}{"error": err.Error()})
-        return
-    }
-    s.bus.Reply(msg, map[string]interface{}{"success": true})
+func (s *SessionManager) SaveAppSnapshot(appId string, snap *AppSnapshot) error {
+	b, _ := json.Marshal(snap)
+	s.cache.Set("app:"+appId, string(b))
+	s.cache.Snapshot("app:" + appId)
+	return nil
 }

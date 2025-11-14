@@ -2,78 +2,79 @@ package permissions
 
 import (
 	"log"
+	"time"
 
-	"aether-broker/backend/bus"
+	"aether/backend/server"
 )
 
 // PermissionsService handles all permission and capability checks.
-// It now requires a valid Aether JWT for all checks.
 type PermissionsService struct {
-	bus    *bus.Bus
-	client *bus.Client
+	bus *server.BusServer
 }
 
 // NewPermissionsService creates a new PermissionsService.
-func NewPermissionsService(bus *bus.Bus) *PermissionsService {
-	return &PermissionsService{
-		bus:    bus,
-		client: &bus.Client{ID: "permissions-service", Receive: make(chan bus.Message, 128)},
+func NewPermissionsService(bus *server.BusServer) *PermissionsService {
+	ps := &PermissionsService{
+		bus: bus,
 	}
+	bus.SubscribeServer("permissions:check", ps.handlePermissionCheck)
+	return ps
 }
 
-// Start begins the PermissionsService's message listening loop.
-func (s *PermissionsService) Start() {
-	log.Println("Starting Permissions Service")
-	s.bus.Subscribe("permissions:check", s.client)
-	go s.listen()
-}
-
-func (s *PermissionsService) listen() {
-	for msg := range s.client.Receive {
-		if msg.Topic == "permissions:check" {
-			go s.handlePermissionCheck(msg)
-		}
-	}
-}
-
-// handlePermissionCheck now requires a valid JWT.
+// handlePermissionCheck requires a valid JWT.
 // It will ask the auth service to verify the JWT and then, if valid,
 // will (for now) approve the request.
-func (s *PermissionsService) handlePermissionCheck(msg bus.Message) {
-	log.Printf("PermissionsService received check request: %v", msg.Payload)
+func (s *PermissionsService) handlePermissionCheck(env *server.Envelope) {
+	log.Printf("PermissionsService received check request: %v", env.Payload)
 
-	// For now, we'll assume the JWT is passed in the payload.
-	// In a real system, this would be more structured.
-	jwt, ok := msg.Payload.(string)
+	jwt, ok := env.Payload["jwt"].(string)
 	if !ok {
 		log.Println("Permissions check requires a JWT.")
-		s.bus.Publish(bus.Message{Topic: "permissions:check:result", Payload: "deny"})
+		s.replyToRequest(env, "deny", "JWT not found in payload")
 		return
 	}
 
-	// We need to wait for the result of the JWT verification.
-	// This requires a synchronous call or a callback mechanism.
-	// For simplicity, we'll use a temporary channel for the response.
-	resultChan := make(chan bus.Message)
-	resultClient := &bus.Client{ID: "permissions-temp-client", Receive: resultChan}
-	s.bus.Subscribe("auth:jwt:valid", resultClient)
-	s.bus.Subscribe("auth:jwt:invalid", resultClient)
+	// Use the bus to make a request to the auth service to verify the JWT
+	authRequest := &server.Envelope{
+		Topic: "auth:verify:jwt",
+		Payload: map[string]interface{}{
+			"token": jwt,
+		},
+	}
 
-	s.bus.Publish(bus.Message{Topic: "auth:verify:jwt", Payload: jwt})
+	// Use Request/Reply to wait for the auth service response
+	authResponse, ok := s.bus.Request(authRequest, 2*time.Second)
+	if !ok {
+		log.Println("Permissions check failed: no response from auth service")
+		s.replyToRequest(env, "deny", "auth service timeout")
+		return
+	}
 
-	// Wait for the auth service to respond.
-	result := <-resultChan
-
-	s.bus.Unsubscribe("auth:jwt:valid", resultClient)
-	s.bus.Unsubscribe("auth:jwt:invalid", resultClient)
-
-	if result.Topic == "auth:jwt:valid" {
+	if authResponse.Topic == "auth:jwt:valid" {
 		log.Println("Permissions check successful, JWT is valid.")
 		// In the future, we would check the claims in the JWT against
 		// the requested action.
-		s.bus.Publish(bus.Message{Topic: "permissions:check:result", Payload: "allow"})
+		s.replyToRequest(env, "allow", "")
 	} else {
 		log.Println("Permissions check failed, JWT is invalid.")
-		s.bus.Publish(bus.Message{Topic: "permissions:check:result", Payload: "deny"})
+		s.replyToRequest(env, "deny", "invalid JWT")
 	}
+}
+
+func (s *PermissionsService) replyToRequest(originalEnv *server.Envelope, result string, errorMsg string) {
+	payload := map[string]interface{}{"result": result}
+	if errorMsg != "" {
+		payload["error"] = errorMsg
+	}
+
+	reply := &server.Envelope{
+		Topic:   "permissions:check:result",
+		Payload: payload,
+	}
+
+	if requestID, ok := originalEnv.Payload["_request_id"].(string); ok {
+		reply.Payload["_reply_to"] = requestID
+	}
+
+	s.bus.Publish(reply)
 }

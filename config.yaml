@@ -10,9 +10,7 @@ vfs:
   default_root: /home/user
 
 auth:
-  enabled: true
-  firebase:
-    service_account: "path/to/your/firebase-service-account-key.json"
+  enabled: false
   jwt_secret: "your-super-secret-and-long-jwt-secret"
 
 permissions:

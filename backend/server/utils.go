@@ -1,7 +1,3 @@
-
-// ===========================
-// backend/server/utils.go
-// ===========================
 package server
 
 import (
@@ -9,5 +5,5 @@ import (
 )
 
 func genUUID() string {
-	return uuid.New().String()
+	return uuid.NewString()
 }
